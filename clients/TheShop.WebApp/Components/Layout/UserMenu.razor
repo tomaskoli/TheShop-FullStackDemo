@@ -1,0 +1,144 @@
+@inject CustomAuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+@inject TheShopApiClient Api
+@inject ILogger<UserMenu> Logger
+@inject IJSRuntime JS
+@implements IDisposable
+@rendermode InteractiveServer
+
+<AuthorizeView>
+    <Authorized>
+        <NavLink href="/basket" class="basket-link">
+            <i class="bi bi-bag"></i>
+            <span>Basket</span>
+            @if (AuthProvider.BasketItemCount > 0)
+            {
+                <span class="basket-badge">@AuthProvider.BasketItemCount</span>
+            }
+        </NavLink>
+        <div class="user-menu">
+            <button class="user-btn" @onclick="ToggleMenu">
+                <i class="bi bi-person-circle"></i>
+                <span>@AuthProvider.CurrentUser?.FirstName</span>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            @if (_showMenu)
+            {
+                <div class="user-dropdown">
+                    <div class="user-info">
+                        <strong>@AuthProvider.CurrentUser?.FirstName @AuthProvider.CurrentUser?.LastName</strong>
+                        <small>@AuthProvider.CurrentUser?.Email</small>
+                        @if (AuthProvider.IsAdmin)
+                        {
+                            <span class="badge-admin">Admin</span>
+                        }
+                    </div>
+                    <hr />
+                    <a href="/orders" class="dropdown-link" @onclick="() => _showMenu = false">
+                        <i class="bi bi-box-seam"></i> My Orders
+                    </a>
+                    <a href="/basket" class="dropdown-link" @onclick="() => _showMenu = false">
+                        <i class="bi bi-bag"></i> My Basket
+                    </a>
+                    @if (AuthProvider.IsAdmin)
+                    {
+                        <hr />
+                        <a href="/admin/orders" class="dropdown-link admin-link" @onclick="() => _showMenu = false">
+                            <i class="bi bi-clipboard-data"></i> All Orders
+                        </a>
+                        <a href="/admin/reports" class="dropdown-link admin-link" @onclick="() => _showMenu = false">
+                            <i class="bi bi-graph-up"></i> Reports
+                        </a>
+                    }
+                    <hr />
+                    <button @onclick="Logout" class="logout-btn" disabled="@_loggingOut">
+                        @if (_loggingOut)
+                        {
+                            <span>Logging out...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span> Logout</span>
+                        }
+                    </button>
+                </div>
+                <div class="overlay" @onclick="() => _showMenu = false"></div>
+            }
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <NavLink href="/login" class="btn-login">Login</NavLink>
+        <NavLink href="/register" class="btn-register">Register</NavLink>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _showMenu;
+    private bool _loggingOut;
+    private IJSObjectReference? _authJsModule;
+
+    protected override void OnInitialized()
+    {
+        AuthProvider.OnUserStateChanged += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && AuthProvider.AccessToken != null)
+        {
+            await LoadBasketCount();
+        }
+    }
+
+    private async Task LoadBasketCount()
+    {
+        try
+        {
+            var basket = await Api.BasketGETAsync();
+            AuthProvider.SetBasketCount(basket.Items.Count);
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load basket count: {StatusCode}", ex.StatusCode);
+        }
+    }
+
+    private void ToggleMenu() => _showMenu = !_showMenu;
+
+    private async Task Logout()
+    {
+        if (_loggingOut)
+        {
+            return;
+        }
+
+        _showMenu = false;
+        _loggingOut = true;
+
+        try
+        {
+            await Api.LogoutAndRevokeAsync();
+        }
+        finally
+        {
+            try
+            {
+                _authJsModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/auth.js");
+                await _authJsModule.InvokeVoidAsync("clearAuthCookies");
+            }
+            catch
+            {
+                // ignore
+            }
+
+            _loggingOut = false;
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthProvider.OnUserStateChanged -= StateHasChanged;
+    }
+}

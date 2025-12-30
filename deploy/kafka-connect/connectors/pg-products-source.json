@@ -1,0 +1,16 @@
+{
+  "name": "pg-products-source",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector",
+    "tasks.max": "1",
+    "connection.url": "jdbc:postgresql://postgres:5432/theshopdb",
+    "connection.user": "postgres",
+    "connection.password": "postgres",
+    "mode": "bulk",
+    "query": "SELECT \"Id\" as id, \"Name\" as name, \"Description\" as description, \"Price\" as price, \"ImageUrl\" as imageurl, \"BrandId\" as brandid, \"CategoryId\" as categoryid, \"IsAvailable\" as isavailable, \"CreatedAt\" as createdat FROM catalog.\"Products\"",
+    "topic.prefix": "pg_products",
+    "poll.interval.ms": "60000",
+    "numeric.mapping": "best_fit"
+  }
+}
+

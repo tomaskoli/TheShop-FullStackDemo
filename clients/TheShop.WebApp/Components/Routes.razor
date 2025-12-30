@@ -1,0 +1,26 @@
+﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div class="alert alert-danger" style="margin: 2rem;">
+                        <i class="bi bi-shield-exclamation"></i>
+                        Access denied. You don't have permission to access this page.
+                    </div>
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Checking authentication...</span>
+                </div>
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

@@ -1,0 +1,280 @@
+@page "/orders"
+@page "/orders/{OrderId:guid}"
+@attribute [Authorize]
+@inject TheShopApiClient Api
+@inject NavigationManager Navigation
+@inject ILogger<Orders> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Orders - TheShop</PageTitle>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger" style="margin-bottom:1rem;">
+        <i class="bi bi-exclamation-triangle"></i> @_error
+        <button type="button" class="btn-close" style="float:right;" @onclick="() => _error = null"></button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>Loading orders...</span>
+    </div>
+}
+else if (OrderId.HasValue && _selectedOrder != null)
+{
+    <div class="page-header">
+        <a href="/orders" style="color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+            <i class="bi bi-arrow-left"></i> Back to orders
+        </a>
+        <h1>Order Details</h1>
+    </div>
+
+    <div class="checkout-grid">
+        <div>
+            <div class="order-card">
+                <div class="order-header">
+                    <div>
+                        <div class="order-id">Order #@_selectedOrder.Id.ToString()[..8]...</div>
+                        <div class="order-date">@_selectedOrder.OrderDate.ToString("MMMM dd, yyyy 'at' HH:mm")</div>
+                    </div>
+                    <span class="order-status @GetStatusClass(_selectedOrder.Status)">@GetStatusText(_selectedOrder.Status)</span>
+                </div>
+                <div class="order-body">
+                    <h4 style="margin:0 0 1rem 0;">Items</h4>
+                    @foreach (var item in _selectedOrder.Items)
+                    {
+                        <div class="order-item">
+                            <span>@item.ProductName × @item.Quantity</span>
+                            <span>$@item.TotalPrice.ToString("N2")</span>
+                        </div>
+                    }
+                    <div class="order-total">
+                        <span>Total</span>
+                        <span class="price">$@_selectedOrder.TotalAmount.ToString("N2")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="basket-summary">
+                <h3 style="margin:0 0 1rem 0;">Shipping Address</h3>
+                <p style="margin:0;color:var(--text-secondary);line-height:1.6;">
+                    @_selectedOrder.ShippingAddress.Street<br />
+                    @_selectedOrder.ShippingAddress.City, @_selectedOrder.ShippingAddress.PostalCode<br />
+                    @_selectedOrder.ShippingAddress.Country
+                </p>
+
+                @if (_selectedOrder.Status == 1)
+                {
+                    <button class="btn btn-danger w-100" style="margin-top:1.5rem;" @onclick="CancelOrder" disabled="@_cancelling">
+                        @if (_cancelling)
+                        {
+                            <span>Cancelling...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-x-lg"></i>
+                            <span> Cancel Order</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <h1>My Orders</h1>
+        <p>View and track your order history</p>
+    </div>
+
+    @if (_orders == null || !_orders.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-box-seam"></i>
+            <h3>No orders yet</h3>
+            <p>Start shopping to see your orders here.</p>
+            <a href="/" class="btn btn-primary">Browse Products</a>
+        </div>
+    }
+    else
+    {
+        @foreach (var order in _orders.OrderByDescending(o => o.OrderDate))
+        {
+            var isCancelling = _cancellingOrderId == order.Id;
+            <div class="order-card" style="cursor:pointer;" @onclick="() => ViewOrder(order.Id)">
+                <div class="order-header">
+                    <div>
+                        <div class="order-id">Order #@order.Id.ToString()[..8]...</div>
+                        <div class="order-date">@order.OrderDate.ToString("MMMM dd, yyyy")</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <span class="order-status @GetStatusClass(order.Status)">@GetStatusText(order.Status)</span>
+                        @if (order.Status == 1)
+                        {
+                            <button class="btn btn-danger btn-sm" @onclick="() => CancelOrderFromList(order.Id)" @onclick:stopPropagation="true" disabled="@isCancelling">
+                                @if (isCancelling)
+                                {
+                                    <span>...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-x-lg"></i>
+                                }
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="order-body">
+                    <div class="order-items">
+                        @foreach (var item in order.Items.Take(3))
+                        {
+                            <div class="order-item">
+                                <span>@item.ProductName × @item.Quantity</span>
+                                <span>$@item.TotalPrice.ToString("N2")</span>
+                            </div>
+                        }
+                        @if (order.Items.Count > 3)
+                        {
+                            <div class="order-item">
+                                <span style="color:var(--text-muted);">+ @(order.Items.Count - 3) more item(s)</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="order-total">
+                        <span>Total</span>
+                        <span class="price">$@order.TotalAmount.ToString("N2")</span>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public Guid? OrderId { get; set; }
+
+    private ICollection<OrderDto>? _orders;
+    private OrderDto? _selectedOrder;
+    private bool _loading = true;
+    private bool _cancelling;
+    private Guid? _cancellingOrderId;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            if (OrderId.HasValue)
+            {
+                _selectedOrder = await Api.OrdersGETAsync(OrderId.Value);
+            }
+            else
+            {
+                _orders = await Api.OrdersAllAsync();
+            }
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogError(ex, "Failed to load orders: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to load orders.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ViewOrder(Guid orderId)
+    {
+        Navigation.NavigateTo($"/orders/{orderId}");
+    }
+
+    private async Task CancelOrder()
+    {
+        if (_selectedOrder == null || _cancelling)
+        {
+            return;
+        }
+
+        _cancelling = true;
+        _error = null;
+
+        try
+        {
+            await Api.CancelAsync(_selectedOrder.Id);
+            await LoadData();
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to cancel order: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to cancel order.");
+        }
+        finally
+        {
+            _cancelling = false;
+        }
+    }
+
+    private async Task CancelOrderFromList(Guid orderId)
+    {
+        if (_cancellingOrderId.HasValue)
+        {
+            return;
+        }
+
+        _cancellingOrderId = orderId;
+        _error = null;
+
+        try
+        {
+            await Api.CancelAsync(orderId);
+            await LoadData();
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to cancel order: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to cancel order.");
+        }
+        finally
+        {
+            _cancellingOrderId = null;
+        }
+    }
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Submitted",
+        1 => "Paid",
+        2 => "Shipped",
+        3 => "Cancelled",
+        _ => "Unknown"
+    };
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-pending",
+        1 => "status-confirmed",
+        2 => "status-shipped",
+        3 => "status-cancelled",
+        _ => ""
+    };
+}

@@ -1,0 +1,15 @@
+# llms-products.txt – Curated product overview for LLM usage
+# Encoding: UTF-8
+# Version: 1.0
+# Date generated: 2025-12-27T00:00:00Z
+site_language: en
+site_country: US
+site_currency: USD
+canonical_url: https://www.github.com/tomaskoli/theshop-demo
+geo_target: US
+structure: product_name | category | price | availability | short_description
+
+# RECOMMENDED PRODUCTS
+Gaming Laptop Pro X1 | Computers | 1299.99 USD | in stock | High-performance gaming laptop with RTX graphics and 144Hz display.
+Wireless Noise-Canceling Headphones | Electronics | 249.99 USD | in stock | Premium wireless headphones with active noise cancellation.
+Smartphone Ultra 256GB | Smartphones | 899.99 USD | in stock | Flagship smartphone with advanced camera system and all-day battery.

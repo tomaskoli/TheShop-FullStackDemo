@@ -1,0 +1,341 @@
+@page "/admin/reports"
+@attribute [Authorize(Roles = "Admin")]
+@inject TheShopApiClient Api
+@inject IJSRuntime JS
+@inject ILogger<AdminReports> Logger
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Admin - Reports - TheShop</PageTitle>
+
+@if (_loading)
+{
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>Loading reports...</span>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <h1><i class="bi bi-graph-up"></i> Reports Dashboard</h1>
+        <p>Sales and user analytics</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" style="margin-bottom:1rem;">
+            <i class="bi bi-exclamation-triangle"></i> @_error
+            <button type="button" class="btn-close" style="float:right;" @onclick="() => _error = null"></button>
+        </div>
+    }
+
+    <div class="filters-panel">
+        <div class="filter-group">
+            <label><i class="bi bi-calendar-event"></i> From Date</label>
+            <input type="date" @bind="_fromDate" @bind:after="LoadStatistics" class="filter-input" />
+        </div>
+        <div class="filter-group">
+            <label><i class="bi bi-calendar-check"></i> To Date</label>
+            <input type="date" @bind="_toDate" @bind:after="LoadStatistics" class="filter-input" />
+        </div>
+        <div class="filter-group">
+            <label><i class="bi bi-tag"></i> Category</label>
+            <select @bind="_categoryId" @bind:after="LoadSalesStatistics" class="filter-select">
+                <option value="">All Categories</option>
+                @foreach (var cat in _categories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </select>
+        </div>
+        <div class="filter-group">
+            <label><i class="bi bi-bookmark"></i> Brand</label>
+            <select @bind="_brandId" @bind:after="LoadSalesStatistics" class="filter-select">
+                <option value="">All Brands</option>
+                @foreach (var brand in _brands)
+                {
+                    <option value="@brand.Id">@brand.Name</option>
+                }
+            </select>
+        </div>
+        <div class="filter-group filter-actions">
+            <button class="btn btn-outline btn-sm" @onclick="ClearFilters">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="reports-section">
+        <h2><i class="bi bi-cart-check"></i> Sales Statistics</h2>
+        @if (_salesStats != null)
+        {
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <i class="bi bi-clock-history"></i>
+                    <div>
+                        <span class="stat-value">@_salesStats.TotalProductsSoldLastDay</span>
+                        <span class="stat-label">Sold Last 24h</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-calendar-month"></i>
+                    <div>
+                        <span class="stat-value">@_salesStats.TotalProductsSoldLastMonth</span>
+                        <span class="stat-label">Sold Last 30d</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-currency-dollar"></i>
+                    <div>
+                        <span class="stat-value">$@_salesStats.TotalRevenueLastDay.ToString("N0")</span>
+                        <span class="stat-label">Revenue Last 24h</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <div>
+                        <span class="stat-value">$@_salesStats.TotalRevenueLastMonth.ToString("N0")</span>
+                        <span class="stat-label">Revenue Last 30d</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <canvas id="brandChart"></canvas>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="reports-section">
+        <h2><i class="bi bi-people"></i> User Statistics</h2>
+        @if (_userStats != null)
+        {
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <i class="bi bi-people-fill"></i>
+                    <div>
+                        <span class="stat-value">@_userStats.TotalUsers</span>
+                        <span class="stat-label">Total Users</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-person-plus"></i>
+                    <div>
+                        <span class="stat-value">@_userStats.NewUsersLastDay</span>
+                        <span class="stat-label">New Last 24h</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-calendar-week"></i>
+                    <div>
+                        <span class="stat-value">@_userStats.NewUsersLastWeek</span>
+                        <span class="stat-label">New Last 7d</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-calendar-month"></i>
+                    <div>
+                        <span class="stat-value">@_userStats.NewUsersLastMonth</span>
+                        <span class="stat-label">New Last 30d</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-broadcast"></i>
+                    <div>
+                        <span class="stat-value">@_userStats.ActiveSessionsNow</span>
+                        <span class="stat-label">Active Sessions</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card chart-card-wide">
+                    <canvas id="registrationsChart"></canvas>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private SalesStatisticsDto? _salesStats;
+    private UserStatisticsDto? _userStats;
+    private ICollection<CategoryDto> _categories = [];
+    private ICollection<BrandDto> _brands = [];
+    private bool _loading = true;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private Guid? _categoryId;
+    private Guid? _brandId;
+    private IJSObjectReference? _jsModule;
+    private bool _chartsRendered;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFiltersData();
+        await LoadStatistics();
+        _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/charts.js");
+        }
+
+        if (_jsModule != null && (_salesStats != null || _userStats != null) && !_chartsRendered)
+        {
+            await RenderCharts();
+            _chartsRendered = true;
+        }
+    }
+
+    private async Task LoadFiltersData()
+    {
+        try
+        {
+            _categories = await Api.CategoriesAsync();
+            _brands = await Api.BrandsAsync();
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load filter data: {StatusCode}", ex.StatusCode);
+        }
+    }
+
+    private async Task LoadStatistics()
+    {
+        _error = null;
+        await LoadSalesStatistics();
+        await LoadUserStatistics();
+    }
+
+    private async Task LoadSalesStatistics()
+    {
+        try
+        {
+            _salesStats = await Api.Statistics2Async(_fromDate, _toDate, _categoryId, _brandId);
+            _chartsRendered = false;
+            if (_jsModule != null)
+            {
+                await RenderSalesCharts();
+            }
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load sales statistics: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to load sales statistics.");
+        }
+    }
+
+    private async Task LoadUserStatistics()
+    {
+        try
+        {
+            _userStats = await Api.StatisticsAsync(_fromDate, _toDate);
+            _chartsRendered = false;
+            if (_jsModule != null)
+            {
+                await RenderUserCharts();
+            }
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load user statistics: {StatusCode}", ex.StatusCode);
+            if (string.IsNullOrEmpty(_error))
+            {
+                _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to load user statistics.");
+            }
+        }
+    }
+
+    private async Task RenderCharts()
+    {
+        await RenderSalesCharts();
+        await RenderUserCharts();
+    }
+
+    private async Task RenderSalesCharts()
+    {
+        if (_salesStats == null || _jsModule == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_salesStats.SalesByCategory.Any())
+            {
+                var catLabels = _salesStats.SalesByCategory.Select(c => c.CategoryName).ToArray();
+                var catData = _salesStats.SalesByCategory.Select(c => (double)c.QuantitySold).ToArray();
+                await _jsModule.InvokeVoidAsync("renderPieChart", "categoryChart", catLabels, catData, "Sales by Category");
+            }
+
+            if (_salesStats.SalesByBrand.Any())
+            {
+                var brandLabels = _salesStats.SalesByBrand.Select(b => b.BrandName).ToArray();
+                var brandData = _salesStats.SalesByBrand.Select(b => (double)b.QuantitySold).ToArray();
+                await _jsModule.InvokeVoidAsync("renderPieChart", "brandChart", brandLabels, brandData, "Sales by Brand");
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit disconnected, safe to ignore
+        }
+    }
+
+    private async Task RenderUserCharts()
+    {
+        if (_userStats == null || _jsModule == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_userStats.RegistrationsByDate.Any())
+            {
+                var regLabels = _userStats.RegistrationsByDate.Select(r => r.Date.ToString("MMM dd")).ToArray();
+                var regData = _userStats.RegistrationsByDate.Select(r => (double)r.Count).ToArray();
+                await _jsModule.InvokeVoidAsync("renderLineChart", "registrationsChart", regLabels, regData, "User Registrations Over Time");
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit disconnected, safe to ignore
+        }
+    }
+
+    private async Task ClearFilters()
+    {
+        _fromDate = null;
+        _toDate = null;
+        _categoryId = null;
+        _brandId = null;
+        await LoadStatistics();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("destroyCharts");
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected, safe to ignore
+            }
+        }
+    }
+}

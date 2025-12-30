@@ -1,0 +1,20 @@
+# llms.txt – AI context map for full-stack demo e-commerce application built with .NET 10
+# Encoding: UTF-8
+# Date generated: 2025-12-27T00:00:00Z
+site_language: en
+site_country: EN
+site_currency: USD
+canonical_url: https://www.github.com/tomaskoli/theshop-demo
+geo_target: US  
+ 
+# Includes (subfiles)
+file: /llms-categories.txt – overview of main categories, new categories, and recommended product areas
+file: /llms-products.txt – overview of main and new products
+
+# Excluded paths (do not crawl or use)
+! /login
+! /register
+! /checkout
+! /orders
+! /basket
+! /admin*

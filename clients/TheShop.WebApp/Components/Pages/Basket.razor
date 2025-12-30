@@ -1,0 +1,231 @@
+@page "/basket"
+@attribute [Authorize]
+@inject TheShopApiClient Api
+@inject CustomAuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+@inject ILogger<Basket> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Basket - TheShop</PageTitle>
+
+<div class="page-header">
+    <h1>Shopping Basket</h1>
+</div>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger" style="margin-bottom:1rem;">
+        <i class="bi bi-exclamation-triangle"></i> @_error
+        <button type="button" class="btn-close" style="float:right;" @onclick="() => _error = null"></button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>Loading basket...</span>
+    </div>
+}
+else if (_basket == null || !_basket.Items.Any())
+{
+    <div class="empty-state">
+        <i class="bi bi-bag"></i>
+        <h3>Your basket is empty</h3>
+        <p>Add some products to get started.</p>
+        <a href="/" class="btn btn-primary">Browse Products</a>
+    </div>
+}
+else
+{
+    <div class="checkout-grid">
+        <div>
+            @foreach (var item in _basket.Items)
+            {
+                <div class="basket-item">
+                    <div class="basket-item-image">
+                        @if (!string.IsNullOrEmpty(item.ImageUrl))
+                        {
+                            <img src="@item.ImageUrl" alt="@item.ProductName" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" />
+                        }
+                        else
+                        {
+                            <i class="bi bi-image" style="font-size:2rem;"></i>
+                        }
+                    </div>
+                    <div class="basket-item-details">
+                        <div class="basket-item-name">@item.ProductName</div>
+                        <div class="basket-item-price">$@item.UnitPrice.ToString("N2") each</div>
+                    </div>
+                    <div class="basket-item-actions">
+                        <div class="quantity-control">
+                            <button @onclick="() => UpdateQuantity(item, item.Quantity - 1)" disabled="@(item.Quantity <= 1 || _processing)">
+                                <i class="bi bi-dash"></i>
+                            </button>
+                            <span>@item.Quantity</span>
+                            <button @onclick="() => UpdateQuantity(item, item.Quantity + 1)" disabled="@_processing">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                        <strong>$@item.TotalPrice.ToString("N2")</strong>
+                        <button class="btn btn-sm" style="color:var(--danger);" @onclick="() => RemoveItem(item)" disabled="@_processing">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div>
+            <div class="basket-summary">
+                <h3 style="margin:0 0 1rem 0;">Order Summary</h3>
+                <div class="summary-row">
+                    <span>Items (@_basket.Items.Sum(i => i.Quantity))</span>
+                    <span>$@_basket.TotalPrice.ToString("N2")</span>
+                </div>
+                <div class="summary-row">
+                    <span>Shipping</span>
+                    <span>Free</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total</span>
+                    <span class="total-price">$@_basket.TotalPrice.ToString("N2")</span>
+                </div>
+                <button class="btn btn-primary w-100 btn-lg" style="margin-top:1rem;" @onclick="Checkout" disabled="@_processing">
+                    <i class="bi bi-credit-card"></i> Checkout
+                </button>
+                <button class="btn btn-secondary w-100" style="margin-top:0.5rem;" @onclick="ClearBasket" disabled="@_processing">
+                    @if (_clearing)
+                    {
+                        <span>Clearing...</span>
+                    }
+                    else
+                    {
+                        <span>Clear Basket</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private BasketDto? _basket;
+    private bool _loading = true;
+    private bool _processing;
+    private bool _clearing;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBasket();
+    }
+
+    private async Task LoadBasket()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _basket = await Api.BasketGETAsync();
+            AuthProvider.SetBasketCount(_basket?.Items.Count ?? 0);
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogError(ex, "Failed to load basket: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to load basket.");
+            _basket = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task UpdateQuantity(BasketItemDto item, int newQuantity)
+    {
+        if (newQuantity < 1 || _processing)
+        {
+            return;
+        }
+
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _basket = await Api.ItemsPUTAsync(item.ProductId, new UpdateBasketItemRequest { Quantity = newQuantity });
+            AuthProvider.SetBasketCount(_basket?.Items.Count ?? 0);
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to update quantity: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to update quantity.");
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task RemoveItem(BasketItemDto item)
+    {
+        if (_processing)
+        {
+            return;
+        }
+
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _basket = await Api.ItemsDELETEAsync(item.ProductId);
+            AuthProvider.SetBasketCount(_basket?.Items.Count ?? 0);
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to remove item: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to remove item.");
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task ClearBasket()
+    {
+        if (_processing)
+        {
+            return;
+        }
+
+        _processing = true;
+        _clearing = true;
+        _error = null;
+
+        try
+        {
+            await Api.BasketDELETEAsync();
+            _basket = null;
+            AuthProvider.SetBasketCount(0);
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to clear basket: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to clear basket.");
+        }
+        finally
+        {
+            _processing = false;
+            _clearing = false;
+        }
+    }
+
+    private void Checkout()
+    {
+        Navigation.NavigateTo("/checkout");
+    }
+}

@@ -1,0 +1,61 @@
+﻿@inherits LayoutComponentBase
+@inject CustomAuthenticationStateProvider AuthProvider
+@implements IDisposable
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <i class="bi bi-shop"></i>
+                <span>TheShop</span>
+            </a>
+            
+            <nav class="main-nav">
+                <NavLink href="/" Match="NavLinkMatch.All">
+                    <i class="bi bi-grid"></i> Products
+                </NavLink>
+                <AuthorizeView>
+                    <Authorized>
+                        <NavLink href="/orders">
+                            <i class="bi bi-box-seam"></i> Orders
+                        </NavLink>
+                    </Authorized>
+                </AuthorizeView>
+            </nav>
+
+            <div class="header-actions">
+                <ThemeToggle />
+                
+                <UserMenu />
+            </div>
+        </div>
+    </header>
+
+    <main class="app-main">
+        @Body
+    </main>
+
+    <footer class="app-footer">
+        <p>&copy; @DateTime.Now.Year TheShop - Demo E-Commerce Platform</p>
+    </footer>
+
+    <ChatWidget />
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthProvider.OnUserStateChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        AuthProvider.OnUserStateChanged -= StateHasChanged;
+    }
+}

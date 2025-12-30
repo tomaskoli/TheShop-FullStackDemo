@@ -1,0 +1,146 @@
+{{- if .Values.externalServices.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: postgres-external
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ required "externalServices.hostIp is required when externalServices.enabled=true" .Values.externalServices.hostIp | quote }}
+    ports:
+      - name: postgres
+        port: 5432
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: redis-external
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ required "externalServices.hostIp is required when externalServices.enabled=true" .Values.externalServices.hostIp | quote }}
+    ports:
+      - name: redis
+        port: 6379
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: kafka
+      port: 9094
+      targetPort: 9094
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: kafka-external
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ required "externalServices.hostIp is required when externalServices.enabled=true" .Values.externalServices.hostIp | quote }}
+    ports:
+      - name: kafka
+        port: 9094
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: jaeger-external
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ required "externalServices.hostIp is required when externalServices.enabled=true" .Values.externalServices.hostIp | quote }}
+    ports:
+      - name: otlp-grpc
+        port: 4317
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromadb-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.chromadb.port }}
+      targetPort: {{ .Values.chromadb.port }}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: chromadb-external
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ .Values.externalServices.hostIp | quote }}
+    ports:
+      - name: http
+        port: {{ .Values.chromadb.port }}
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j-external
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: bolt
+      port: {{ .Values.neo4j.port }}
+      targetPort: {{ .Values.neo4j.port }}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: neo4j-external
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ .Values.externalServices.hostIp | quote }}
+    ports:
+      - name: bolt
+        port: {{ .Values.neo4j.port }}
+        protocol: TCP
+{{- end }}
+

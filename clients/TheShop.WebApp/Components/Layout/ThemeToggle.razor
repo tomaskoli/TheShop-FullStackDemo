@@ -1,0 +1,52 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<button class="theme-toggle" @onclick="ToggleTheme" title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
+    <i class="bi @(_isDark ? "bi-sun" : "bi-moon-stars")"></i>
+</button>
+
+@code {
+    private bool _isDark = true;
+    private bool _initialized;
+    private IJSObjectReference? _jsModule;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/theme.js");
+            var savedTheme = await _jsModule.InvokeAsync<string?>("getStoredTheme");
+            _isDark = savedTheme != "light";
+            _initialized = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        if (!_initialized || _jsModule == null)
+        {
+            return;
+        }
+        
+        _isDark = !_isDark;
+            await _jsModule.InvokeVoidAsync("setStoredTheme", _isDark ? "dark" : "light");
+            await _jsModule.InvokeVoidAsync("applyTheme", _isDark);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected, safe to ignore
+            }
+        }
+    }
+}

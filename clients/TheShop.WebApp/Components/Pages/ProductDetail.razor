@@ -1,0 +1,509 @@
+@page "/product/{ProductId:guid}"
+@inject TheShopApiClient Api
+@inject CustomAuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+@inject ILogger<ProductDetail> Logger
+@rendermode InteractiveServer
+
+<PageTitle>@(_product?.Name ?? "Product") - TheShop</PageTitle>
+
+@if (_loading)
+{
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>Loading product...</span>
+    </div>
+}
+else if (_product == null)
+{
+    <div class="empty-state">
+        <i class="bi bi-box-seam"></i>
+        <h3>Product not found</h3>
+        <p>The product you're looking for doesn't exist or has been removed.</p>
+        <a href="/" class="btn btn-primary">
+            <i class="bi bi-arrow-left"></i> Back to Products
+        </a>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" style="margin-bottom:1rem;">
+            <i class="bi bi-exclamation-triangle"></i> @_error
+            <button type="button" class="btn-close" style="float:right;" @onclick="() => _error = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_success))
+    {
+        <div class="alert alert-success" style="margin-bottom:1rem;">
+            <i class="bi bi-check-circle"></i> @_success
+            <button type="button" class="btn-close" style="float:right;" @onclick="() => _success = null"></button>
+        </div>
+    }
+
+    <div class="product-detail">
+        <nav class="breadcrumb">
+            <a href="/">Products</a>
+            <i class="bi bi-chevron-right"></i>
+            <a href="/?categoryId=@_product.CategoryId">@_product.CategoryName</a>
+            <i class="bi bi-chevron-right"></i>
+            <span>@_product.Name</span>
+        </nav>
+
+        <div class="product-detail-grid">
+            <div class="product-detail-image">
+                @if (!string.IsNullOrEmpty(_product.ImageUrl))
+                {
+                    <img src="@_product.ImageUrl" alt="@_product.Name" />
+                }
+                else
+                {
+                    <div class="image-placeholder">
+                        <i class="bi bi-image"></i>
+                    </div>
+                }
+            </div>
+
+            <div class="product-detail-info">
+                <div class="product-detail-meta">
+                    <a href="/?brandId=@_product.BrandId" class="product-detail-brand">@_product.BrandName</a>
+                    <span class="product-detail-category">@_product.CategoryName</span>
+                </div>
+
+                <h1 class="product-detail-name">@_product.Name</h1>
+
+                <div class="product-detail-price">
+                    <span class="price-value">$@_product.Price.ToString("N2")</span>
+                    @if (_product.IsAvailable)
+                    {
+                        <span class="availability in-stock">
+                            <i class="bi bi-check-circle-fill"></i> In Stock
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="availability out-of-stock">
+                            <i class="bi bi-x-circle-fill"></i> Out of Stock
+                        </span>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_product.Description))
+                {
+                    <div class="product-detail-description">
+                        <h3>Description</h3>
+                        <p>@_product.Description</p>
+                    </div>
+                }
+
+                <div class="product-detail-actions">
+                    <AuthorizeView>
+                        <Authorized>
+                            @if (_product.IsAvailable)
+                            {
+                                <div class="quantity-selector">
+                                    <button class="qty-btn" @onclick="DecreaseQuantity" disabled="@(_quantity <= 1)">
+                                        <i class="bi bi-dash"></i>
+                                    </button>
+                                    <span class="qty-value">@_quantity</span>
+                                    <button class="qty-btn" @onclick="IncreaseQuantity" disabled="@(_quantity >= 10)">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                                <button class="btn btn-primary btn-lg add-to-cart-btn" @onclick="AddToBasket" disabled="@_adding">
+                                    @if (_adding)
+                                    {
+                                        <span class="spinner-sm"></span>
+                                        <span>Adding...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-bag-plus"></i>
+                                        <span>Add to Basket</span>
+                                    }
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-secondary btn-lg" disabled>
+                                    <i class="bi bi-x-circle"></i>
+                                    <span>Out of Stock</span>
+                                </button>
+                            }
+                        </Authorized>
+                        <NotAuthorized>
+                            <a href="/login" class="btn btn-primary btn-lg add-to-cart-btn">
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                <span>Login to Buy</span>
+                            </a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </div>
+
+                <div class="product-detail-extra">
+                    <div class="extra-item">
+                        <i class="bi bi-truck"></i>
+                        <span>Free shipping on orders over $50</span>
+                    </div>
+                    <div class="extra-item">
+                        <i class="bi bi-arrow-return-left"></i>
+                        <span>30-day return policy</span>
+                    </div>
+                    <div class="extra-item">
+                        <i class="bi bi-shield-check"></i>
+                        <span>Secure checkout</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .breadcrumb a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+
+    .breadcrumb a:hover {
+        color: var(--accent);
+    }
+
+    .breadcrumb i {
+        font-size: 0.7rem;
+        opacity: 0.5;
+    }
+
+    .breadcrumb span {
+        color: var(--text-primary);
+    }
+
+    .product-detail-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3rem;
+        align-items: start;
+    }
+
+    .product-detail-image {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        aspect-ratio: 1;
+    }
+
+    .product-detail-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .image-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-secondary);
+        color: var(--text-muted);
+        font-size: 6rem;
+    }
+
+    .product-detail-info {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .product-detail-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .product-detail-brand {
+        font-size: 0.85rem;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: opacity 0.2s;
+    }
+
+    .product-detail-brand:hover {
+        opacity: 0.8;
+    }
+
+    .product-detail-category {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        padding: 0.25rem 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+    }
+
+    .product-detail-name {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+        color: var(--text-primary);
+    }
+
+    .product-detail-price {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .price-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--accent);
+    }
+
+    .availability {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .availability.in-stock {
+        color: #2ecc71;
+    }
+
+    .availability.out-of-stock {
+        color: var(--danger);
+    }
+
+    .product-detail-description {
+        padding: 1.5rem;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+    }
+
+    .product-detail-description h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 0.75rem 0;
+        color: var(--text-primary);
+    }
+
+    .product-detail-description p {
+        margin: 0;
+        color: var(--text-secondary);
+        line-height: 1.7;
+    }
+
+    .product-detail-actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding-top: 1rem;
+    }
+
+    .quantity-selector {
+        display: flex;
+        align-items: center;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+    }
+
+    .qty-btn {
+        width: 44px;
+        height: 44px;
+        border: none;
+        background: transparent;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+    }
+
+    .qty-btn:hover:not(:disabled) {
+        background: var(--accent);
+        color: #fff;
+    }
+
+    .qty-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .qty-value {
+        width: 50px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .add-to-cart-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    .product-detail-extra {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .extra-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .extra-item i {
+        color: var(--accent);
+        font-size: 1.1rem;
+        width: 24px;
+    }
+
+    @@media (max-width: 900px) {
+        .product-detail-grid {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        .product-detail-name {
+            font-size: 1.75rem;
+        }
+
+        .price-value {
+            font-size: 1.5rem;
+        }
+
+        .product-detail-actions {
+            flex-direction: column;
+        }
+
+        .quantity-selector {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .add-to-cart-btn {
+            width: 100%;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid ProductId { get; set; }
+
+    private ProductDto? _product;
+    private bool _loading = true;
+    private bool _adding;
+    private int _quantity = 1;
+    private string? _error;
+    private string? _success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProduct();
+    }
+
+    private async Task LoadProduct()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _product = await Api.ProductsGET2Async(ProductId);
+        }
+        catch (ApiException ex) when (ex.StatusCode == 404)
+        {
+            _product = null;
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogError(ex, "Failed to load product {ProductId}: {StatusCode}", ProductId, ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to load product. Please try again.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void IncreaseQuantity()
+    {
+        if (_quantity < 10)
+        {
+            _quantity++;
+        }
+    }
+
+    private void DecreaseQuantity()
+    {
+        if (_quantity > 1)
+        {
+            _quantity--;
+        }
+    }
+
+    private async Task AddToBasket()
+    {
+        if (_adding || _product == null)
+        {
+            return;
+        }
+
+        _adding = true;
+        _error = null;
+        _success = null;
+
+        try
+        {
+            var basket = await Api.ItemsPOSTAsync(new AddToBasketRequest
+            {
+                ProductId = _product.Id,
+                Quantity = _quantity
+            });
+            AuthProvider.SetBasketCount(basket.Items.Count);
+            _success = $"Added {_quantity} {(_quantity == 1 ? "item" : "items")} to your basket!";
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to add product to basket: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to add item to basket.");
+        }
+        finally
+        {
+            _adding = false;
+        }
+    }
+}
+

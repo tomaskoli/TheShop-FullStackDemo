@@ -1,0 +1,44 @@
+# TheShop WebApp Configuration
+
+replicaCount: 1
+
+image:
+  # Repository and tag are automatically updated by CI/CD pipeline
+  repository: ghcr.io/tomaskoli/theshop-fullstackdemo-webapp
+  tag: "2025.12.30-12"
+  pullPolicy: Always
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  nodePort: 30233
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# API endpoint - pointing to the API service in Kubernetes
+api:
+  baseUrl: http://theshop-api.theshop.svc.cluster.local
+
+# Ingress
+ingress:
+  enabled: false  # Set to true to enable HTTPS via Ingress
+  host: theshop.local
+
+# Health checks
+probes:
+  liveness:
+    path: /alive
+    initialDelaySeconds: 15
+    periodSeconds: 10
+  readiness:
+    path: /alive
+    initialDelaySeconds: 5
+    periodSeconds: 5
+

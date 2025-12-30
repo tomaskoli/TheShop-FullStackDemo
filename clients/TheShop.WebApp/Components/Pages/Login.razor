@@ -1,0 +1,103 @@
+@page "/login"
+@inject TheShopApiClient Api
+@inject CustomAuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+@inject ILogger<Login> Logger
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Login - TheShop</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>Welcome Back</h1>
+            <p>Sign in to your account</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="HandleLogin" FormName="login">
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <InputText @bind-Value="_model.Email" class="form-control" placeholder="you@example.com" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <InputText @bind-Value="_model.Password" type="password" class="form-control" placeholder="••••••••" />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 btn-lg" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span>Signing in...</span>
+                }
+                else
+                {
+                    <span>Sign In</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="/register">Create one</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private LoginModel _model = new();
+    private string? _error;
+    private bool _loading;
+    private IJSObjectReference? _authJsModule;
+
+    private async Task HandleLogin()
+    {
+        _error = null;
+        _loading = true;
+
+        try
+        {
+            var response = await Api.LoginAsync(new LoginRequest
+            {
+                Email = _model.Email,
+                Password = _model.Password
+            });
+
+            _authJsModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/auth.js");
+            await _authJsModule.InvokeVoidAsync("setAuthCookies", response.AccessToken, response.RefreshToken);
+
+            await AuthProvider.LoginWithTokenAsync(response.AccessToken, response.RefreshToken);
+
+            var redirectUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : Uri.UnescapeDataString(ReturnUrl);
+            Navigation.NavigateTo(redirectUrl);
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Login failed: {StatusCode}", ex.StatusCode);
+            _error = ex.StatusCode switch
+            {
+                401 => "Invalid email or password",
+                400 => ApiErrorHandler.ParseValidationError(ex.Response) ?? "Invalid login data",
+                _ => ApiErrorHandler.GetUserFriendlyMessage(ex, "Login failed. Please try again.")
+            };
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

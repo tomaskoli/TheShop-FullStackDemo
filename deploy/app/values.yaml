@@ -1,0 +1,92 @@
+# TheShop API Configuration
+
+replicaCount: 1
+
+image:
+  # Repository and tag are automatically updated by CI/CD pipeline
+  repository: ghcr.io/tomaskoli/theshop-fullstackdemo
+  tag: "2025.12.30-12"
+  pullPolicy: Always
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  nodePort: 30232
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# External dependencies (Postgres/Redis/Kafka/Jaeger) run in Docker on your host.
+externalServices:
+  enabled: true
+  # Set to an actual IP address reachable from pods
+  hostIp: "172.24.80.1"
+
+postgresql:
+  host: host.docker.internal
+  port: 5432
+  database: theshopdb
+  username: postgres
+  password: postgres
+
+redis:
+  host: host.docker.internal
+  port: 6379
+
+kafka:
+  bootstrapServers: host.docker.internal:9094
+
+observability:
+  otlpEndpoint: http://host.docker.internal:4317
+  prometheusEnabled: true
+  metricsPath: /metrics
+
+chatbot:
+  openAiApiKey: ""
+  openAiModel: "gpt-5-nano"
+  embeddingModel: "text-embedding-3-small"
+  systemPrompt: "You are a helpful shopping assistant for TheShop e-commerce store. You help customers with: 1) Questions about terms and conditions, warranty, return policies, and shipping - use the DocumentSearch plugin to find relevant information. 2) Finding products by name, brand, or category - use the ProductGraph plugin. 3) Getting product recommendations and alternatives - use the ProductGraph plugin. Always be helpful, concise, and accurate. When providing product information, include the price and brand. If you cannot find information, say so honestly. Do not make up information about products or policies."
+
+chromadb:
+  host: host.docker.internal
+  port: 8100
+  collectionName: theshop_documents
+
+neo4j:
+  host: host.docker.internal
+  port: 7687
+  database: theshop
+  username: neo4j
+  password: "12345678"
+
+jwt:
+  secret: "YourSuperSecretKeyThatIsAtLeast32CharactersLong!"
+  issuer: "TheShop"
+  audience: "TheShop"
+
+cors:
+  allowedOrigins:
+    - "http://localhost:30232"
+    - "http://localhost:30080"
+
+# Ingress (TLS termination)
+ingress:
+  enabled: false  # Set to true to enable HTTPS via Ingress
+  host: api.theshop.local
+
+# Health checks
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readiness:
+    path: /alive
+    initialDelaySeconds: 5
+    periodSeconds: 5

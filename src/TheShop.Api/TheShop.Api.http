@@ -1,0 +1,299 @@
+@baseUrl = http://localhost:5232
+@contentType = application/json
+
+### ============================================
+### IDENTITY ENDPOINTS
+### ============================================
+
+### Register a new user (Customer)
+POST {{baseUrl}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+    "email": "customer2@example.com",
+    "password": "Password123!",
+    "firstName": "John",
+    "lastName": "Doe"
+}
+
+### Register an admin user
+POST {{baseUrl}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+    "email": "admin1@example.com",
+    "password": "Admin123!",
+    "firstName": "Admin",
+    "lastName": "User"
+}
+
+### Login Customer
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+    "email": "customer@example.com",
+    "password": "Password123!"
+}
+
+### Login Admin
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+    "email": "admin@example.com",
+    "password": "Admin123!"
+}
+
+### Save the token from login response
+@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjdhYjcyY2VhLWZhYTItNDZiNi1iM2NjLTc0ZmI3MTRjZDlhMyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2VtYWlsYWRkcmVzcyI6ImFkbWluQGV4YW1wbGUuY29tIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkFkbWluIFVzZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBZG1pbiIsImp0aSI6ImEwZGZhNzQ1LWIxMGUtNDhiMS04NTJhLWIzYzRlMDAzZDFhMyIsImV4cCI6MTc2NjcyMzA1OSwiaXNzIjoiVGhlU2hvcCIsImF1ZCI6IlRoZVNob3AuQXBpIn0.0UnCKwrGiSXxlzkKy2jiNnczQtOo42yJtxKCehR2NRE
+@refreshToken = sqv6hlXtyw+FFp+YiVs5AFYiGWYNoZb8o62lV92tjMSOQVX5dMgykfqyqnPunSCJ5b6D/bgkUdtnC7qIqBaXVg==+oQvgp1c6olbMUGL9scCf6tCXBXQSo/2/ipWtR/tzT9lfvKjObOIAS6iYBycp+gEec1Knihl6rQzL6lx4OA6/A==
+
+### Get current user
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Refresh token
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: {{contentType}}
+
+{
+    "refreshToken": "{{refreshToken}}"
+}
+
+### Get active sessions
+GET {{baseUrl}}/api/auth/sessions
+Authorization: Bearer {{accessToken}}
+
+### Logout (current session only)
+POST {{baseUrl}}/api/auth/logout
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "logoutAllDevices": false
+}
+
+### Logout (all devices)
+POST {{baseUrl}}/api/auth/logout
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "logoutAllDevices": true
+}
+
+### ============================================
+### CATALOG ENDPOINTS
+### ============================================
+
+### Get all products (paginated)
+GET {{baseUrl}}/api/catalog/products?page=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+
+### Get all products with search
+GET {{baseUrl}}/api/catalog/products?page=1&pageSize=10&search=phone
+Authorization: Bearer {{accessToken}}
+
+### Get product by ID
+GET {{baseUrl}}/api/catalog/products/e03e7e22-6caa-4da1-92e8-0c81cf68abba
+Authorization: Bearer {{accessToken}}
+
+### Get all brands
+GET {{baseUrl}}/api/catalog/brands
+Authorization: Bearer {{accessToken}}
+
+### Get all categories
+GET {{baseUrl}}/api/catalog/categories
+Authorization: Bearer {{accessToken}}
+
+### Create product (Admin only)
+# First login as admin and use that token
+POST {{baseUrl}}/api/catalog/products
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "name": "iPhone 15 Pro",
+    "description": "Latest Apple smartphone with A17 Pro chip",
+    "price": 999.99,
+    "imageUrl": "https://example.com/iphone15.jpg",
+    "brandId": "00000000-0000-0000-0000-000000000001",
+    "categoryId": "00000000-0000-0000-0000-000000000001"
+}
+
+### Update product (Admin only)
+PUT {{baseUrl}}/api/catalog/products/d60fced4-b4e5-41c2-bbb8-93cc58e71370
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "name": "iPhone 15 Pro Max",
+    "description": "Updated description again",
+    "price": 2099.99,
+    "imageUrl": "https://example.com/iphone15promax.jpg",
+    "brandId": "00000000-0000-0000-0000-000000000001",
+    "categoryId": "00000000-0000-0000-0000-000000000001"
+}
+
+### Delete product (Admin only)
+DELETE {{baseUrl}}/api/catalog/products/f7b4afd4-8e76-41f1-b229-a504f8ababd8
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### BASKET ENDPOINTS
+### ============================================
+
+### Get current user's basket
+GET {{baseUrl}}/api/basket
+Authorization: Bearer {{accessToken}}
+
+### Add item to basket
+### NOTE: Price, name, and imageUrl are resolved server-side from Catalog to prevent price tampering
+POST {{baseUrl}}/api/basket/items
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "productId": "e03e7e22-6caa-4da1-92e8-0c81cf68abba",
+    "quantity": 1
+}
+
+### Add another item to basket
+### NOTE: Price, name, and imageUrl are resolved server-side from Catalog to prevent price tampering
+POST {{baseUrl}}/api/basket/items
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "productId": "00000000-0000-0000-0000-000000000002",
+    "quantity": 2
+}
+
+### Update item quantity in basket
+PUT {{baseUrl}}/api/basket/items/e03e7e22-6caa-4da1-92e8-0c81cf68abba
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "quantity": 3
+}
+
+### Remove item from basket
+DELETE {{baseUrl}}/api/basket/items/00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{accessToken}}
+
+### Clear entire basket
+DELETE {{baseUrl}}/api/basket
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### ORDERING ENDPOINTS
+### ============================================
+
+### Get all orders (Admin only)
+GET {{baseUrl}}/api/orders/all?page=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+
+### Get current user's orders
+GET {{baseUrl}}/api/orders
+Authorization: Bearer {{accessToken}}
+
+### Get order by ID
+GET {{baseUrl}}/api/orders/1a0124c8-7dec-4a56-af43-906c34e0ebb9
+Authorization: Bearer {{accessToken}}
+
+### Create order from basket
+POST {{baseUrl}}/api/orders
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+    "shippingStreet": "123 Main Street",
+    "shippingCity": "Prague",
+    "shippingPostalCode": "11000",
+    "shippingCountry": "Czech Republic"
+}
+
+### Cancel order
+PUT {{baseUrl}}/api/orders/07c72bf0-271a-4504-b2f8-a0de0e41446a/cancel
+Authorization: Bearer {{accessToken}}
+
+### Ship order (Admin only)
+PUT {{baseUrl}}/api/orders/c696e2cc-6868-4c8d-b777-b6c6d314e338/ship
+Authorization: Bearer {{accessToken}}
+
+### Get sales statistics (Admin only)
+GET {{baseUrl}}/api/orders/statistics
+Authorization: Bearer {{accessToken}}
+
+### Get sales statistics with filters (Admin only)
+GET {{baseUrl}}/api/orders/statistics?fromDate=2024-01-01&toDate=2024-12-31
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### USER STATISTICS ENDPOINTS (Admin only)
+### ============================================
+
+### Get user statistics
+GET {{baseUrl}}/api/auth/statistics
+Authorization: Bearer {{accessToken}}
+
+### Get user statistics with date range
+GET {{baseUrl}}/api/auth/statistics?fromDate=2024-01-01&toDate=2024-12-31
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### HEALTH & METRICS ENDPOINTS
+### ============================================
+
+### Health check (all)
+GET {{baseUrl}}/health
+
+### Liveness check
+GET {{baseUrl}}/alive
+
+### Readiness check
+GET {{baseUrl}}/ready
+
+### Prometheus metrics
+GET {{baseUrl}}/metrics
+
+### ============================================
+### CHATBOT ENDPOINTS
+### ============================================
+
+### Chat - Ask about warranty
+POST {{baseUrl}}/api/chatbot/chat
+Content-Type: application/json
+
+{
+  "message": "What is your warranty policy?"
+}
+
+### Chat - Ask about products (Samsung phones)
+POST {{baseUrl}}/api/chatbot/chat
+Content-Type: application/json
+
+{
+  "message": "Show me Samsung smartphones"
+}
+
+### Chat - Ask for recommendations
+POST {{baseUrl}}/api/chatbot/chat
+Content-Type: application/json
+
+{
+  "message": "Can you recommend headphones similar to AirPods Pro?"
+}
+
+### Chat - Continue conversation (use conversationId from previous response)
+POST {{baseUrl}}/api/chatbot/chat
+Content-Type: application/json
+
+{
+  "message": "What about laptops?",
+  "conversationId": "f9f6b272-547c-4271-8206-532e3239016e"
+}

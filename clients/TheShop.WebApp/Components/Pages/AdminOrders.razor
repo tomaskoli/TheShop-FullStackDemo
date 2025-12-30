@@ -1,0 +1,384 @@
+@page "/admin/orders"
+@attribute [Authorize(Roles = "Admin")]
+@inject TheShopApiClient Api
+@inject CustomAuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<AdminOrders> Logger
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Admin - All Orders - TheShop</PageTitle>
+
+@if (_initialLoading)
+{
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>Loading orders...</span>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <h1><i class="bi bi-clipboard-data"></i> All Orders</h1>
+        <p>Manage all customer orders</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" style="margin-bottom:1rem;">
+            <i class="bi bi-exclamation-triangle"></i> @_error
+            <button type="button" class="btn-close" style="float:right;" @onclick="() => _error = null"></button>
+        </div>
+    }
+
+    <div class="filters-panel">
+        <div class="filter-group">
+            <label><i class="bi bi-funnel"></i> Status</label>
+            <select @bind="_statusFilter" @bind:after="ApplyFilters" class="filter-select">
+                <option value="">All Statuses</option>
+                <option value="0">Submitted</option>
+                <option value="1">Paid</option>
+                <option value="2">Shipped</option>
+                <option value="3">Cancelled</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label><i class="bi bi-calendar-event"></i> From Date</label>
+            <input type="date" @bind="_dateFrom" @bind:after="ApplyFilters" class="filter-input" />
+        </div>
+        <div class="filter-group">
+            <label><i class="bi bi-calendar-check"></i> To Date</label>
+            <input type="date" @bind="_dateTo" @bind:after="ApplyFilters" class="filter-input" />
+        </div>
+        <div class="filter-group filter-actions">
+            <button class="btn btn-outline btn-sm" @onclick="ClearFilters" title="Clear all filters">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+        </div>
+    </div>
+
+    @if (!_displayedOrders.Any() && !_loadingMore)
+    {
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h3>No orders found</h3>
+            <p>@(_hasFilters ? "No orders match your filter criteria." : "There are no orders in the system yet.")</p>
+            @if (_hasFilters)
+            {
+                <button class="btn btn-primary" @onclick="ClearFilters">Clear Filters</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="admin-stats">
+            <div class="stat-card">
+                <i class="bi bi-receipt"></i>
+                <div>
+                    <span class="stat-value">@_allOrders.Count</span>
+                    <span class="stat-label">Total Orders</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="bi bi-filter"></i>
+                <div>
+                    <span class="stat-value">@_filteredOrders.Count()</span>
+                    <span class="stat-label">Filtered Results</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="bi bi-eye"></i>
+                <div>
+                    <span class="stat-value">@_displayedOrders.Count</span>
+                    <span class="stat-label">Showing</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-table-wrapper">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Items</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var order in _displayedOrders)
+                    {
+                        <tr>
+                            <td class="order-id-cell">
+                                <code>@order.Id.ToString()[..8]...</code>
+                            </td>
+                            <td>@order.OrderDate.ToString("MMM dd, yyyy HH:mm")</td>
+                            <td class="buyer-cell">
+                                <code>@order.BuyerId.ToString()[..8]...</code>
+                            </td>
+                            <td>@order.Items.Count item(s)</td>
+                            <td class="price-cell">$@order.TotalAmount.ToString("N2")</td>
+                            <td>
+                                <span class="order-status @GetStatusClass(order.Status)">
+                                    @GetStatusText(order.Status)
+                                </span>
+                            </td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-outline" @onclick="() => ViewOrder(order.Id)" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                @if (order.Status == 1)
+                                {
+                                    <button class="btn btn-sm btn-primary" @onclick="() => ShipOrder(order.Id)" disabled="@(_shippingOrderId == order.Id)" title="Mark as Shipped">
+                                        @if (_shippingOrderId == order.Id)
+                                        {
+                                            <span class="spinner-sm"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-truck"></i>
+                                        }
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_hasMoreItems)
+        {
+            <div class="lazy-load-trigger" @ref="_loadMoreTrigger">
+                @if (_loadingMore)
+                {
+                    <div class="loading-more">
+                        <div class="spinner-sm"></div>
+                        <span>Loading more orders...</span>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-outline load-more-btn" @onclick="LoadMore">
+                        <i class="bi bi-arrow-down-circle"></i> Load More
+                    </button>
+                }
+            </div>
+        }
+        else if (_displayedOrders.Any())
+        {
+            <div class="end-of-list">
+                <i class="bi bi-check-circle"></i>
+                <span>All @_filteredOrders.Count() orders loaded</span>
+            </div>
+        }
+    }
+}
+
+@code {
+    private List<OrderDto> _allOrders = [];
+    private List<OrderDto> _filteredOrders = [];
+    private List<OrderDto> _displayedOrders = [];
+    private bool _initialLoading = true;
+    private bool _loadingMore;
+    private int _batchSize = 20;
+    private Guid? _shippingOrderId;
+    private ElementReference _loadMoreTrigger;
+    private DotNetObjectReference<AdminOrders>? _dotNetRef;
+    private IJSObjectReference? _jsModule;
+    private string? _error;
+
+    private string _statusFilter = "";
+    private DateTime? _dateFrom;
+    private DateTime? _dateTo;
+
+    private bool _hasFilters => !string.IsNullOrEmpty(_statusFilter) || _dateFrom.HasValue || _dateTo.HasValue;
+    private bool _hasMoreItems => _displayedOrders.Count < _filteredOrders.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAllOrders();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/lazy-load.js");
+            await SetupIntersectionObserver();
+        }
+    }
+
+    private async Task SetupIntersectionObserver()
+    {
+        if (_jsModule != null && _hasMoreItems)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("observeElement", _loadMoreTrigger, _dotNetRef);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected, safe to ignore
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnIntersecting()
+    {
+        if (!_loadingMore && _hasMoreItems)
+        {
+            await LoadMore();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadAllOrders()
+    {
+        _initialLoading = true;
+        _error = null;
+
+        try
+        {
+            var result = await Api.AllAsync(1, 10000);
+            _allOrders = result.Items.OrderByDescending(o => o.OrderDate).ToList();
+            ApplyFilters();
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogError(ex, "Failed to load orders: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to load orders.");
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = _allOrders.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(_statusFilter) && int.TryParse(_statusFilter, out var status))
+        {
+            filtered = filtered.Where(o => o.Status == status);
+        }
+
+        if (_dateFrom.HasValue)
+        {
+            filtered = filtered.Where(o => o.OrderDate.Date >= _dateFrom.Value.Date);
+        }
+
+        if (_dateTo.HasValue)
+        {
+            filtered = filtered.Where(o => o.OrderDate.Date <= _dateTo.Value.Date);
+        }
+
+        _filteredOrders = filtered.ToList();
+        _displayedOrders = _filteredOrders.Take(_batchSize).ToList();
+    }
+
+    private async Task LoadMore()
+    {
+        if (_loadingMore || !_hasMoreItems)
+        {
+            return;
+        }
+
+        _loadingMore = true;
+        StateHasChanged();
+
+        await Task.Delay(300);
+
+        var currentCount = _displayedOrders.Count;
+        var nextBatch = _filteredOrders.Skip(currentCount).Take(_batchSize);
+        _displayedOrders.AddRange(nextBatch);
+
+        _loadingMore = false;
+
+        if (_hasMoreItems)
+        {
+            await SetupIntersectionObserver();
+        }
+    }
+
+    private void ClearFilters()
+    {
+        _statusFilter = "";
+        _dateFrom = null;
+        _dateTo = null;
+        ApplyFilters();
+    }
+
+    private void ViewOrder(Guid orderId)
+    {
+        Navigation.NavigateTo($"/orders/{orderId}");
+    }
+
+    private async Task ShipOrder(Guid orderId)
+    {
+        if (_shippingOrderId.HasValue)
+        {
+            return;
+        }
+
+        _shippingOrderId = orderId;
+        _error = null;
+
+        try
+        {
+            await Api.ShipAsync(orderId);
+            await LoadAllOrders();
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Failed to ship order: {StatusCode}", ex.StatusCode);
+            _error = ApiErrorHandler.GetUserFriendlyMessage(ex, "Failed to mark order as shipped.");
+        }
+        finally
+        {
+            _shippingOrderId = null;
+        }
+    }
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Submitted",
+        1 => "Paid",
+        2 => "Shipped",
+        3 => "Cancelled",
+        _ => "Unknown"
+    };
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-pending",
+        1 => "status-confirmed",
+        2 => "status-shipped",
+        3 => "status-cancelled",
+        _ => ""
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("disconnect");
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected, safe to ignore
+            }
+        }
+        _dotNetRef?.Dispose();
+    }
+}
