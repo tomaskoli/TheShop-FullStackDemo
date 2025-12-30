@@ -1,0 +1,47 @@
+name: devnet-api-test
+
+services:
+  theshop-api:
+    image: theshop-api:test
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    container_name: theshop-api
+    ports:
+      - "5232:8080"
+    environment:
+      # ASP.NET Core
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      
+      # PostgreSQL (container name on devnet)
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=theshopdb;Username=postgres;Password=postgres"
+      
+      # Redis (container name on devnet)
+      ConnectionStrings__Redis: "redis:6379,abortConnect=false"
+      
+      # Kafka (container name on devnet)
+      Kafka__BootstrapServers: "kafka:9092"
+      
+      # JWT Secret (minimum 32 characters)
+      Jwt__Secret: "YourSuperSecretKeyThatIsAtLeast32CharactersLong!"
+      Jwt__Issuer: "TheShop"
+      Jwt__Audience: "TheShop"
+      Jwt__AccessTokenExpirationMinutes: "60"
+      Jwt__RefreshTokenExpirationDays: "7"
+      
+      # OpenTelemetry / Jaeger
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_SERVICE_NAME: "theshop-api"
+      
+      # CORS (allow local testing)
+      Cors__AllowedOrigins__0: "http://localhost:5233"
+      Cors__AllowedOrigins__1: "http://localhost:3000"
+    networks:
+      - devnet
+    restart: unless-stopped
+
+networks:
+  devnet:
+    external: true
+

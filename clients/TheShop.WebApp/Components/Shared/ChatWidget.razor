@@ -1,0 +1,248 @@
+@inject TheShopApiClient Api
+@inject ILogger<ChatWidget> Logger
+@implements IDisposable
+@rendermode InteractiveServer
+
+<div class="chat-widget @(_isOpen ? "open" : "")">
+    @if (_isOpen)
+    {
+        <div class="chat-panel">
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <i class="bi bi-robot"></i>
+                    <span>TheShop Assistant</span>
+                </div>
+                <div class="chat-header-actions">
+                    @if (!string.IsNullOrEmpty(_conversationId))
+                    {
+                        <button class="chat-header-btn" @onclick="ClearConversation" title="New conversation">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    }
+                    <button class="chat-header-btn" @onclick="ToggleChat" title="Close">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chat-messages" @ref="_messagesContainer">
+                @if (_messages.Count == 0)
+                {
+                    <div class="chat-welcome">
+                        <i class="bi bi-chat-dots"></i>
+                        <h4>Hello! How can I help?</h4>
+                        <p>Ask me about products, policies, shipping, or returns.</p>
+                        <div class="chat-suggestions">
+                            <button class="suggestion-chip" @onclick="@(() => SendSuggestion("What is your return policy?"))">
+                                Return policy
+                            </button>
+                            <button class="suggestion-chip" @onclick="@(() => SendSuggestion("Show me Samsung products"))">
+                                Samsung products
+                            </button>
+                            <button class="suggestion-chip" @onclick="@(() => SendSuggestion("What are your shipping options?"))">
+                                Shipping info
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var message in _messages)
+                    {
+                        <div class="chat-message @(message.IsUser ? "user" : "assistant")">
+                            @if (!message.IsUser)
+                            {
+                                <div class="message-avatar">
+                                    <i class="bi bi-robot"></i>
+                                </div>
+                            }
+                            <div class="message-content">
+                                <div class="message-text">@message.Text</div>
+                                @if (message.Sources?.Count > 0)
+                                {
+                                    <div class="message-sources">
+                                        @foreach (var source in message.Sources)
+                                        {
+                                            <span class="source-tag">
+                                                <i class="bi bi-file-text"></i> @source.Title
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (_isLoading)
+                    {
+                        <div class="chat-message assistant">
+                            <div class="message-avatar">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="message-content">
+                                <div class="typing-indicator">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="chat-input-area">
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="chat-error">
+                        <i class="bi bi-exclamation-circle"></i>
+                        @_error
+                    </div>
+                }
+                <form @onsubmit="SendMessage" class="chat-form">
+                    <input type="text"
+                           class="chat-input"
+                           placeholder="Type your message..."
+                           @bind="_inputMessage"
+                           @bind:event="oninput"
+                           disabled="@_isLoading" />
+                    <button type="submit" class="chat-send-btn" disabled="@(_isLoading || string.IsNullOrWhiteSpace(_inputMessage))">
+                        @if (_isLoading)
+                        {
+                            <span class="spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-send-fill"></i>
+                        }
+                    </button>
+                </form>
+            </div>
+        </div>
+    }
+
+    <button class="chat-toggle-btn @(_isOpen ? "hidden" : "")" @onclick="ToggleChat" title="Chat with us">
+        <i class="bi bi-chat-dots-fill"></i>
+        @if (_hasUnread)
+        {
+            <span class="chat-badge"></span>
+        }
+    </button>
+</div>
+
+@code {
+    private bool _isOpen;
+    private bool _isLoading;
+    private bool _hasUnread;
+    private string _inputMessage = "";
+    private string? _conversationId;
+    private string? _error;
+    private List<ChatMessage> _messages = new();
+    private ElementReference _messagesContainer;
+    private CancellationTokenSource? _cts;
+
+    private class ChatMessage
+    {
+        public required string Text { get; set; }
+        public bool IsUser { get; set; }
+        public List<SourceReference>? Sources { get; set; }
+    }
+
+    private void ToggleChat()
+    {
+        _isOpen = !_isOpen;
+        _hasUnread = false;
+        _error = null;
+    }
+
+    private async Task SendSuggestion(string suggestion)
+    {
+        _inputMessage = suggestion;
+        await SendMessage();
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_inputMessage) || _isLoading)
+        {
+            return;
+        }
+
+        var userMessage = _inputMessage.Trim();
+        _inputMessage = "";
+        _error = null;
+
+        _messages.Add(new ChatMessage { Text = userMessage, IsUser = true });
+        _isLoading = true;
+        StateHasChanged();
+
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            var request = new ChatRequest
+            {
+                Message = userMessage,
+                ConversationId = _conversationId
+            };
+
+            var response = await Api.ChatAsync(request, _cts.Token);
+
+            _conversationId = response.ConversationId;
+
+            _messages.Add(new ChatMessage
+            {
+                Text = response.Answer,
+                IsUser = false,
+                Sources = response.Sources?.ToList()
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogError(ex, "Chat API error: {StatusCode}", ex.StatusCode);
+            _error = "Failed to get response. Please try again.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected chat error");
+            _error = "Something went wrong. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearConversation()
+    {
+        if (!string.IsNullOrEmpty(_conversationId))
+        {
+            try
+            {
+                await Api.ConversationsAsync(_conversationId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to delete conversation");
+            }
+        }
+
+        _messages.Clear();
+        _conversationId = null;
+        _error = null;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}
+

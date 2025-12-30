@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: theshop-config
+  namespace: {{ .Release.Namespace }}
+data:
+  appsettings.Kubernetes.json: |
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft.AspNetCore": "Warning",
+          "Microsoft.EntityFrameworkCore": "Warning"
+        }
+      },
+      "AllowedHosts": "*",
+      "OpenTelemetry": {
+        "Enabled": true,
+        "ServiceName": "theshop-api",
+        "OtlpEndpoint": "{{ .Values.observability.otlpEndpoint }}"
+      }
+    }
+

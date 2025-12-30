@@ -1,0 +1,59 @@
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Copy solution and project files first for better caching
+COPY *.sln ./
+COPY src/TheShop.Api/*.csproj ./src/TheShop.Api/
+COPY src/TheShop.AppHost/*.csproj ./src/TheShop.AppHost/
+COPY src/SharedKernel/*.csproj ./src/SharedKernel/
+COPY src/Infrastructure/TheShop.Infrastructure/*.csproj ./src/Infrastructure/TheShop.Infrastructure/
+COPY src/Infrastructure/TheShop.Messaging/*.csproj ./src/Infrastructure/TheShop.Messaging/
+COPY src/Infrastructure/TheShop.ServiceDefaults/*.csproj ./src/Infrastructure/TheShop.ServiceDefaults/
+COPY src/Modules/Identity/Identity.Domain/*.csproj ./src/Modules/Identity/Identity.Domain/
+COPY src/Modules/Identity/Identity.Application/*.csproj ./src/Modules/Identity/Identity.Application/
+COPY src/Modules/Catalog/Catalog.Domain/*.csproj ./src/Modules/Catalog/Catalog.Domain/
+COPY src/Modules/Catalog/Catalog.Application/*.csproj ./src/Modules/Catalog/Catalog.Application/
+COPY src/Modules/Basket/Basket.Domain/*.csproj ./src/Modules/Basket/Basket.Domain/
+COPY src/Modules/Basket/Basket.Application/*.csproj ./src/Modules/Basket/Basket.Application/
+COPY src/Modules/Ordering/Ordering.Domain/*.csproj ./src/Modules/Ordering/Ordering.Domain/
+COPY src/Modules/Ordering/Ordering.Application/*.csproj ./src/Modules/Ordering/Ordering.Application/
+COPY src/Modules/Chatbot/Chatbot.Application/*.csproj ./src/Modules/Chatbot/Chatbot.Application/
+COPY src/Modules/Chatbot/Chatbot.Infrastructure/*.csproj ./src/Modules/Chatbot/Chatbot.Infrastructure/
+COPY clients/TheShop.WebApp/*.csproj ./clients/TheShop.WebApp/
+COPY tests/TheShop.UnitTests/*.csproj ./tests/TheShop.UnitTests/
+COPY tests/TheShop.IntegrationTests/*.csproj ./tests/TheShop.IntegrationTests/
+COPY tools/ClientGenerator/*.csproj ./tools/ClientGenerator/
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy all source code
+COPY . .
+
+# Build the WebApp project
+WORKDIR /src/clients/TheShop.WebApp
+RUN dotnet build -c Release -o /app/build
+
+# Publish stage
+FROM build AS publish
+RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+
+# Copy published app
+COPY --from=publish /app/publish .
+
+# Use the built-in non-root user (available in .NET 8+ images)
+USER $APP_UID
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+ENTRYPOINT ["dotnet", "TheShop.WebApp.dll"]

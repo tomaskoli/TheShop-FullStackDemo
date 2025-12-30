@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: theshop-webapp
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tomaskoli/TheShop-FullStackDemo.git
+    targetRevision: main
+    path: deploy/webapp
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: theshop
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+

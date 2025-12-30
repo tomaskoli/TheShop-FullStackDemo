@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: theshop-webapp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: theshop-webapp
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: theshop-webapp
+  template:
+    metadata:
+      labels:
+        app: theshop-webapp
+    spec:
+      containers:
+        - name: theshop-webapp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: ApiSettings
+              value: {{ .Values.api.baseUrl | quote }}
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: {{ printf "http://+:%d" (.Values.service.targetPort | int) | quote }}
+            - name: HttpsRedirection__HttpsPort
+              value: ""
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+

@@ -1,0 +1,122 @@
+@page "/register"
+@inject TheShopApiClient Api
+@inject NavigationManager Navigation
+@inject ILogger<Register> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Register - TheShop</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>Create Account</h1>
+            <p>Join TheShop today</p>
+        </div>
+
+        @if (_errors.Any())
+        {
+            <div class="alert alert-danger">
+                @if (_errors.Count == 1)
+                {
+                    @_errors[0]
+                }
+                else
+                {
+                    <ul style="margin:0;padding-left:1.2rem;">
+                        @foreach (var error in _errors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="HandleRegister" FormName="register">
+            <div class="form-group">
+                <label class="form-label">First Name</label>
+                <InputText @bind-Value="_model.FirstName" class="form-control" placeholder="John" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Last Name</label>
+                <InputText @bind-Value="_model.LastName" class="form-control" placeholder="Doe" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <InputText @bind-Value="_model.Email" class="form-control" placeholder="you@example.com" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <InputText @bind-Value="_model.Password" type="password" class="form-control" placeholder="••••••••" />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 btn-lg" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span>Creating account...</span>
+                }
+                else
+                {
+                    <span>Create Account</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            Already have an account? <a href="/login">Sign in</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterModel _model = new();
+    private List<string> _errors = [];
+    private bool _loading;
+
+    private async Task HandleRegister()
+    {
+        _errors.Clear();
+        _loading = true;
+
+        try
+        {
+            await Api.RegisterAsync(new RegisterRequest
+            {
+                Email = _model.Email,
+                Password = _model.Password,
+                FirstName = _model.FirstName,
+                LastName = _model.LastName
+            });
+
+            Navigation.NavigateTo("/login?registered=true");
+        }
+        catch (ApiException ex)
+        {
+            Logger.LogWarning(ex, "Registration failed: {StatusCode}", ex.StatusCode);
+            var errorMessage = ApiErrorHandler.ParseValidationError(ex.Response);
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                _errors.Add(errorMessage);
+            }
+            else
+            {
+                _errors.Add(ApiErrorHandler.GetUserFriendlyMessage(ex, "Registration failed. Please try again."));
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private class RegisterModel
+    {
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

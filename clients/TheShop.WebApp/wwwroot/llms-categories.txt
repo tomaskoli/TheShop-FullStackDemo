@@ -1,0 +1,14 @@
+# llms-categories.txt – Categories overview for LLM usage
+# Encoding: UTF-8
+# Date generated: 2025-12-27T00:00:00Z
+site_language: en
+site_country: US
+site_currency: USD
+canonical_url: https://www.github.com/tomaskoli/theshop-demo
+geo_target: US
+structure: category | short_description
+
+# RECOMMENDED CATEGORIES
+Electronics | Consumer electronics including phones, tablets, and accessories.
+Computers | Desktop computers, laptops, and computer accessories.
+Smartphones | Mobile phones from various manufacturers.

@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: theshop-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: theshop-api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: theshop-api
+  template:
+    metadata:
+      labels:
+        app: theshop-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.service.targetPort }}"
+        prometheus.io/path: "{{ .Values.observability.metricsPath }}"
+    spec:
+      containers:
+        - name: theshop-api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            # PostgreSQL (Docker)
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: theshop-api-secrets
+                  key: default-connection
+            
+            # Redis (Docker)
+            - name: ConnectionStrings__Redis
+              value: {{ printf "%s:%d,abortConnect=false" (ternary "redis-external" .Values.redis.host .Values.externalServices.enabled) (.Values.redis.port | int) | quote }}
+            
+            # Kafka (Docker)
+            - name: Kafka__BootstrapServers
+              value: {{ ternary "kafka-external:9094" .Values.kafka.bootstrapServers .Values.externalServices.enabled | quote }}
+            
+            # OpenTelemetry (Docker)
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ ternary "http://jaeger-external:4317" .Values.observability.otlpEndpoint .Values.externalServices.enabled | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: "theshop-api"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=theshop,deployment.environment=development"
+            
+            # JWT Authentication (from Secret)
+            - name: Jwt__Secret
+              valueFrom:
+                secretKeyRef:
+                  name: theshop-api-secrets
+                  key: jwt-secret
+            - name: Jwt__Issuer
+              value: {{ .Values.jwt.issuer | quote }}
+            - name: Jwt__Audience
+              value: {{ .Values.jwt.audience | quote }}
+            
+            # CORS
+            {{- range $index, $origin := .Values.cors.allowedOrigins }}
+            - name: Cors__AllowedOrigins__{{ $index }}
+              value: {{ $origin | quote }}
+            {{- end }}
+            
+            # Chatbot - OpenAI
+            - name: Chatbot__OpenAiApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: theshop-api-secrets
+                  key: openai-api-key
+            - name: Chatbot__OpenAiModel
+              value: {{ .Values.chatbot.openAiModel | quote }}
+            - name: Chatbot__EmbeddingModel
+              value: {{ .Values.chatbot.embeddingModel | quote }}
+            - name: Chatbot__SystemPrompt
+              value: {{ .Values.chatbot.systemPrompt | quote }}
+            
+            # Chatbot - ChromaDB
+            - name: Chatbot__ChromaEndpoint
+              value: {{ printf "http://%s:%d" (ternary "chromadb-external" .Values.chromadb.host .Values.externalServices.enabled) (.Values.chromadb.port | int) | quote }}
+            - name: Chatbot__ChromaCollectionName
+              value: {{ .Values.chromadb.collectionName | quote }}
+            
+            # Chatbot - Neo4j
+            - name: Chatbot__Neo4jUri
+              value: {{ printf "neo4j://%s:%d" (ternary "neo4j-external" .Values.neo4j.host .Values.externalServices.enabled) (.Values.neo4j.port | int) | quote }}
+            - name: Chatbot__Neo4jUser
+              value: {{ .Values.neo4j.username | quote }}
+            - name: Chatbot__Neo4jPassword
+              value: {{ .Values.neo4j.password | quote }}
+            - name: Chatbot__Neo4jDatabase
+              value: {{ .Values.neo4j.database | quote }}
+            
+            # ASP.NET Core
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: {{ printf "http://+:%d" (.Values.service.targetPort | int) | quote }}
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}

@@ -1,0 +1,15 @@
+# robots.txt for TheShop WebApp
+User-agent: *
+Allow: /
+
+# Disallow sensitive paths
+Disallow: /login
+Disallow: /register
+Disallow: /checkout
+Disallow: /orders
+Disallow: /basket
+Disallow: /admin*
+
+# Sitemap (uncomment when available)
+# Sitemap: https://yoursite.com/sitemap.xml
+

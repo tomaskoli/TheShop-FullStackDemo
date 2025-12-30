@@ -1,0 +1,25 @@
+name: devnet-webapp-test
+
+services:
+  theshop-webapp:
+    image: theshop-webapp:test
+    build:
+      context: ../../
+      dockerfile: Dockerfile.webapp
+    container_name: theshop-webapp
+    ports:
+      - "5233:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      
+      # API endpoint (container name on devnet)
+      ApiSettings__BaseUrl: "http://theshop-api:8080"
+    networks:
+      - devnet
+    restart: unless-stopped
+
+networks:
+  devnet:
+    external: true
+

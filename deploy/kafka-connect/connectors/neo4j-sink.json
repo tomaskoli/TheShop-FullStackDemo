@@ -1,0 +1,29 @@
+{
+  "name": "neo4j-sink",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "tasks.max": "1",
+    "topics": "pg_brands,pg_categories,pg_products",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+
+    "neo4j.uri": "neo4j://neo4j:7687",
+    "neo4j.authentication.type": "BASIC",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "12345678",
+    "neo4j.database": "theshop",
+
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+
+    "neo4j.cypher.topic.pg_brands": "MERGE (b:Brand {id: event.id}) SET b.name = event.name",
+
+    "neo4j.cypher.topic.pg_categories": "MERGE (c:Category {id: event.id}) SET c.name = event.name, c.description = event.description",
+
+    "neo4j.cypher.topic.pg_products": "MERGE (p:Product {id: event.id}) SET p.name = event.name, p.description = event.description, p.price = toFloat(event.price), p.imageUrl = event.imageurl, p.isAvailable = event.isavailable WITH p, event MATCH (b:Brand {id: event.brandid}) MERGE (p)-[:MADE_BY]->(b) WITH p, event MATCH (c:Category {id: event.categoryid}) MERGE (p)-[:BELONGS_TO]->(c)"
+  }
+}
+

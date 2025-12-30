@@ -1,0 +1,80 @@
+argo-cd:
+  global:
+    domain: argocd.local
+
+  configs:
+    params:
+      server.insecure: true
+
+    repositories:
+      theshop-demo:
+        url: https://github.com/tomaskoli/TheShop-FullStackDemo.git
+        type: git
+        # Uncomment and configure for private repo
+        # passwordSecret:
+        #   name: github-repo-credentials
+        #   key: password
+        # usernameSecret:
+        #   name: github-repo-credentials
+        #   key: username
+
+  server:
+    replicas: 1
+    service:
+      type: NodePort
+      nodePortHttp: 30080
+      nodePortHttps: 30443
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  controller:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  repoServer:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  applicationSet:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  redis:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  dex:
+    enabled: false
+
+  notifications:
+    enabled: false
+
