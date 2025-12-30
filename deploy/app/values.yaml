@@ -5,7 +5,7 @@ replicaCount: 1
 image:
   # Repository and tag are automatically updated by CI/CD pipeline
   repository: ghcr.io/tomaskoli/theshop-fullstackdemo
-  tag: "2025.12.30-12"
+  tag: "2025.12.30-2"
   pullPolicy: Always
 
 service:
